@@ -1,0 +1,39 @@
+Cada grupo deverá trabalhar uma base de dados
+pode ser da UCI ML repository, Kaggle, scikit-learn ou alguma outra
+basta um integrante do grupo entregar 
+
+observar se a base de dados permite Classificação (outras possibilidades Regressão etc não servem neste momento)
+
+ler as informações da página da base de dados para verificar qual atributo (campo ou variável) é usada para classificador y (target / alvo)
+
+baixar os dados - já tem o script python na página que separa os atributos matriz X e o vetor classificador y
+
+Separar os atributos X numéricos dos X nominais, se houver ambos os tipos
+Nos atributos nominais, aplicar OneHotEncoder
+Nos atributos numéricos, aplicar StandardScaler (normalização à escala 0...1)
+Unir os numéricos e os nominais novamente, formando uma única matriz X
+(veja modelo 7_titanic_num_nom.py anexado para este caso)
+
+separar o conjunto em 80% para treinamento e 20% para teste, usando o método 'train_test_split'
+
+configurar o MLP da biblioteca scikit-learn para treinamento. Execute várias vezes, variando:
+a) arquitetura da rede
+      a1) uma camada oculta com 10, 20, 50, 100, 200 neurons
+      a2) duas camadas ocultas com 10+10, 20+20, 50+50 neurons
+b) função de ativação 'relu' ou 'sigmoid', verificar e relatar qual delas fornece melhor acurácia
+c) número de ciclos ou épocas (max_iter), verificar e relatar em quantas épocas termina o treinamento "por falta de melhoria"
+d) taxa de aprendizado, testar 'adaptive'
+e) matriz de confusão para cada rodada
+
+Entregar na forma de relatório, constando:
+- base de dados escolhida e site de origem
+- descrição da base de dados: quantas linhas (instâncias ou registros) e variáveis (campos, features ou atributos)
+- integrantes do grupo
+- código fonte em Python
+- saída de resultados do terminal para cada execução proposta a), b), c), d), e)
+- colocar subtítulo com os parâmetros usados em cada rodada
+- conclusão, relatando qual conjunto de parâmetros levou à melhor acurácia e à "melhor" matriz de confusão
+      pode ser feita uma tabela neste caso, informando em cada célula dela o valor de acurácia obtido, bastam 4 casas decimais
+- pode ser "colado" tudo em um arquivo do Word para gerar o relatório. Se desejarem, convertam em PDF.
+
+O arquivo abaixo é um modelo caso haja na base atributos numéricos e nominais juntos..py 
