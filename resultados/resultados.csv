@@ -1,0 +1,39 @@
+rodada,item,camadas,ativacao,solver,learning_rate,learning_rate_init,max_iter,epocas,atingiu_max_iter,acc_treino,acc_teste
+1,a/b,"(10,)",relu,adam,constant,0.001,2000,1224,False,0.9969,0.7267
+2,a/b,"(10,)",logistic,adam,constant,0.001,2000,1938,False,1.0,0.7205
+3,a/b,"(20,)",relu,adam,constant,0.001,2000,735,False,1.0,0.7143
+4,a/b,"(20,)",logistic,adam,constant,0.001,2000,1320,False,1.0,0.7267
+5,a/b,"(50,)",relu,adam,constant,0.001,2000,424,False,1.0,0.7267
+6,a/b,"(50,)",logistic,adam,constant,0.001,2000,936,False,1.0,0.7391
+7,a/b,"(100,)",relu,adam,constant,0.001,2000,324,False,1.0,0.7391
+8,a/b,"(100,)",logistic,adam,constant,0.001,2000,785,False,1.0,0.7391
+9,a/b,"(200,)",relu,adam,constant,0.001,2000,292,False,1.0,0.7205
+10,a/b,"(200,)",logistic,adam,constant,0.001,2000,674,False,1.0,0.7329
+11,a/b,"(10, 10)",relu,adam,constant,0.001,2000,1009,False,0.9906,0.6522
+12,a/b,"(10, 10)",logistic,adam,constant,0.001,2000,2000,True,0.9906,0.6708
+13,a/b,"(20, 20)",relu,adam,constant,0.001,2000,475,False,1.0,0.6957
+14,a/b,"(20, 20)",logistic,adam,constant,0.001,2000,1347,False,1.0,0.7019
+15,a/b,"(50, 50)",relu,adam,constant,0.001,2000,251,False,1.0,0.7081
+16,a/b,"(50, 50)",logistic,adam,constant,0.001,2000,882,False,1.0,0.677
+17,c,"(50,)",logistic,adam,constant,0.001,50,50,True,0.3781,0.3416
+18,c,"(50,)",logistic,adam,constant,0.001,100,100,True,0.6297,0.5342
+19,c,"(50,)",logistic,adam,constant,0.001,200,200,True,0.8703,0.6584
+20,c,"(50,)",logistic,adam,constant,0.001,500,500,True,0.9906,0.7329
+21,c,"(50,)",logistic,adam,constant,0.001,1000,936,False,1.0,0.7391
+22,c,"(50,)",logistic,adam,constant,0.001,2000,936,False,1.0,0.7391
+23,d,"(10,)",logistic,sgd,constant,0.1,2000,1137,False,0.9969,0.7081
+24,d,"(10,)",logistic,sgd,adaptive,0.1,2000,1233,False,0.9969,0.7081
+25,d,"(20,)",logistic,sgd,constant,0.1,2000,760,False,1.0,0.6832
+26,d,"(20,)",logistic,sgd,adaptive,0.1,2000,848,False,1.0,0.6832
+27,d,"(50,)",logistic,sgd,constant,0.1,2000,629,False,1.0,0.6646
+28,d,"(50,)",logistic,sgd,adaptive,0.1,2000,718,False,1.0,0.6646
+29,d,"(100,)",logistic,sgd,constant,0.1,2000,590,False,1.0,0.6832
+30,d,"(100,)",logistic,sgd,adaptive,0.1,2000,678,False,1.0,0.6832
+31,d,"(200,)",logistic,sgd,constant,0.1,2000,646,False,1.0,0.6708
+32,d,"(200,)",logistic,sgd,adaptive,0.1,2000,735,False,1.0,0.6708
+33,d,"(10, 10)",logistic,sgd,constant,0.1,2000,1219,False,1.0,0.6149
+34,d,"(10, 10)",logistic,sgd,adaptive,0.1,2000,1308,False,1.0,0.6149
+35,d,"(20, 20)",logistic,sgd,constant,0.1,2000,771,False,1.0,0.6398
+36,d,"(20, 20)",logistic,sgd,adaptive,0.1,2000,859,False,1.0,0.6335
+37,d,"(50, 50)",logistic,sgd,constant,0.1,2000,579,False,1.0,0.6335
+38,d,"(50, 50)",logistic,sgd,adaptive,0.1,2000,668,False,1.0,0.6335

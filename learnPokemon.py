@@ -1,22 +1,39 @@
 # Dataset: https://www.kaggle.com/datasets/rounakbanik/pokemon  (pokemon.csv)
+# Alvo (y): type1 -> tipo primário do Pokémon (18 classes)
 
 import ast
-import copy
+import os
+import sys
+import time
+import warnings
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
 from sklearn.neural_network import MLPClassifier
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler, MultiLabelBinarizer
+from sklearn.preprocessing import StandardScaler, OneHotEncoder, MultiLabelBinarizer
 from sklearn.metrics import (accuracy_score, confusion_matrix,
-                             ConfusionMatrixDisplay, classification_report)
+                             ConfusionMatrixDisplay)
+from sklearn.exceptions import ConvergenceWarning
 
-USAR_AGAINST = False    # True = inclui as colunas against_* (quase entregam o tipo)
-N_EPOCAS = 500          # máximo de épocas
-PACIENCIA = 100          # para se a validação não melhorar por N épocas
-GRAFICO_AO_VIVO = True  # True = atualiza o gráfico durante o treino
-ATUALIZA_A_CADA = 10    # de quantas em quantas épocas redesenhar
+USAR_AGAINST = False     # True = inclui as colunas against_* (quase entregam o tipo)
+MAX_ITER = 2000          # máximo de épocas (alto, para o treino parar "por falta de melhoria")
+N_ITER_NO_CHANGE = 10    # épocas sem melhoria (tol) até parar - padrão do scikit-learn
+LR_INIT_SGD = 0.1        # taxa de aprendizado inicial do sgd (com o padrão 0.001 ele quase não aprende)
+SEED = 42
+PASTA_SAIDA = 'resultados'
+
+ARQUITETURAS = [         # a1) uma camada oculta / a2) duas camadas ocultas
+    (10,), (20,), (50,), (100,), (200,),
+    (10, 10), (20, 20), (50, 50),
+]
+ATIVACOES = ['relu', 'logistic']   # 'logistic' é a sigmoid no scikit-learn
+
+EM_NOTEBOOK = 'ipykernel' in sys.modules
+os.makedirs(PASTA_SAIDA, exist_ok=True)
+pd.set_option('display.width', 250)
+pd.set_option('display.max_columns', 30)
 
 
 #%% CARGA DOS DADOS
@@ -24,9 +41,14 @@ ATUALIZA_A_CADA = 10    # de quantas em quantas épocas redesenhar
 df = pd.read_csv('pokemon.csv')
 y = df['type1']
 
+print(f'Instâncias (linhas): {df.shape[0]} | Variáveis (colunas): {df.shape[1]}')
+print(f'Alvo: type1 com {y.nunique()} classes')
+print(y.value_counts().to_string())
 
-#%% PRÉ-PROCESSAMENTO
 
+#%% PRÉ-PROCESSAMENTO: NUMÉRICOS x NOMINAIS
+
+# --- atributos numéricos -> StandardScaler
 colunas_numericas = [
     'hp', 'attack', 'defense', 'sp_attack', 'sp_defense', 'speed',
     'height_m', 'weight_kg', 'base_total', 'base_egg_steps',
@@ -39,125 +61,179 @@ if USAR_AGAINST:
 X_num = df[colunas_numericas].copy()
 X_num['capture_rate'] = pd.to_numeric(
     X_num['capture_rate'].astype(str).str.extract(r'(\d+)')[0])
-X_num['percentage_male'] = X_num['percentage_male'].fillna(-1)
+X_num['percentage_male'] = X_num['percentage_male'].fillna(-1)   # -1 = sem gênero
 X_num = X_num.fillna(X_num.median())
 
-X_tipo2 = pd.get_dummies(df['type2'].fillna('none'), prefix='type2', dtype=int)
+scaler = StandardScaler()
+X_num = pd.DataFrame(scaler.fit_transform(X_num),
+                     columns=colunas_numericas, index=df.index)
 
+# --- atributos nominais -> OneHotEncoder
+colunas_nominais = ['type2']
+ohe = OneHotEncoder(sparse_output=False)
+X_nom = pd.DataFrame(ohe.fit_transform(df[colunas_nominais].fillna('none')),
+                     columns=ohe.get_feature_names_out(colunas_nominais),
+                     index=df.index)
+
+# 'abilities' é multi-rótulo (lista de habilidades por Pokémon), então o
+# OneHotEncoder não se aplica: o MultiLabelBinarizer faz o equivalente
+# (uma coluna 0/1 por habilidade)
 lista_hab = df['abilities'].apply(ast.literal_eval)
 mlb = MultiLabelBinarizer()
 X_hab = pd.DataFrame(mlb.fit_transform(lista_hab),
-                     columns=['hab_' + h for h in mlb.classes_],
+                     columns=['abilities_' + h for h in mlb.classes_],
                      index=df.index)
 
-X = pd.concat([X_num, X_tipo2, X_hab], axis=1)
+# --- une numéricos e nominais em uma única matriz X
+X = pd.concat([X_num, X_nom, X_hab], axis=1)
+print(f'Numéricos: {X_num.shape[1]} | Nominais (one-hot): {X_nom.shape[1] + X_hab.shape[1]}')
 print('Matriz de entrada X:', X.shape)
 
 
-#%% DIVISÃO: TREINO / VALIDAÇÃO / TESTE
+#%% DIVISÃO: 80% TREINO / 20% TESTE
 
-estratificar = y if y.value_counts().min() >= 2 else None
-X_tr, X_test, y_tr, y_test = train_test_split(
-    X, y, test_size=0.2, random_state=42, stratify=estratificar)
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y, test_size=0.2, random_state=SEED, stratify=y)
 
-# validação (10% do treino): serve para escolher a melhor época sem "espiar" o teste
-X_train, X_val, y_train, y_val = train_test_split(
-    X_tr, y_tr, test_size=0.1, random_state=42)
-
-scaler = StandardScaler()
-X_train_s = scaler.fit_transform(X_train)
-X_val_s = scaler.transform(X_val)
-X_test_s = scaler.transform(X_test)
-
-print(f'Treino: {len(X_train)} | Validação: {len(X_val)} | Teste: {len(X_test)}')
+print(f'Treino: {len(X_train)} | Teste: {len(X_test)}')
 
 
-#%% TREINAMENTO ÉPOCA POR ÉPOCA
+#%% FUNÇÕES AUXILIARES
 
-mlp = MLPClassifier(hidden_layer_sizes=(100, 50), alpha=1e-2,
-                    activation='relu', random_state=42)
-classes = np.unique(y)
-
-hist = {'perda': [], 'treino': [], 'validacao': [], 'teste': []}
-melhor_val, melhor_ep, melhor_modelo = -1, 0, None
-
-if GRAFICO_AO_VIVO:
-    plt.ion()
-fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(13, 4.5))
+resultados = []
 
 
-def desenhar():
-    ax1.clear()
-    ax1.plot(hist['perda'], color='tab:red')
-    ax1.set_title('Perda (erro) no treino')
-    ax1.set_xlabel('Época')
-    ax1.set_ylabel('Perda')
+def rodar(item, camadas, ativacao, solver='adam', learning_rate='constant',
+          max_iter=MAX_ITER, learning_rate_init=0.001):
+    """Treina um MLP, imprime o resultado e mostra a matriz de confusão."""
+    n = len(resultados) + 1
+    titulo = (f'Rodada {n:02d} [{item}] - camadas={camadas} | ativação={ativacao} | '
+              f'solver={solver} | learning_rate={learning_rate} | '
+              f'learning_rate_init={learning_rate_init} | max_iter={max_iter}')
+    print('\n' + '=' * len(titulo))
+    print(titulo)
+    print('=' * len(titulo))
 
-    ax2.clear()
-    ax2.plot(hist['treino'], label='treino')
-    ax2.plot(hist['validacao'], label='validação')
-    ax2.plot(hist['teste'], label='teste')
-    ax2.axvline(melhor_ep, color='gray', ls='--', label=f'melhor época ({melhor_ep})')
-    ax2.set_title('Curva de aprendizado (acurácia)')
-    ax2.set_xlabel('Época')
-    ax2.set_ylabel('Acurácia')
-    ax2.set_ylim(0, 1.05)
-    ax2.legend(loc='lower right')
+    mlp = MLPClassifier(hidden_layer_sizes=camadas, activation=ativacao,
+                        solver=solver, learning_rate=learning_rate,
+                        learning_rate_init=learning_rate_init,
+                        max_iter=max_iter, n_iter_no_change=N_ITER_NO_CHANGE,
+                        random_state=SEED)
+
+    inicio = time.time()
+    with warnings.catch_warnings(record=True) as avisos:
+        warnings.simplefilter('always', ConvergenceWarning)
+        mlp.fit(X_train, y_train)
+    segundos = time.time() - inicio
+    atingiu_max = any(issubclass(a.category, ConvergenceWarning) for a in avisos)
+
+    y_pred = mlp.predict(X_test)
+    acc_treino = accuracy_score(y_train, mlp.predict(X_train))
+    acc_teste = accuracy_score(y_test, y_pred)
+    motivo = ('atingiu max_iter (não convergiu)' if atingiu_max
+              else f'falta de melhoria ({N_ITER_NO_CHANGE} épocas sem melhorar)')
+
+    print(f'Épocas executadas: {mlp.n_iter_}  -> parou por {motivo}')
+    print(f'Perda final: {mlp.loss_:.4f} | tempo: {segundos:.1f}s')
+    print(f'Acurácia treino: {acc_treino:.4f}')
+    print(f'Acurácia teste:  {acc_teste:.4f}')
+
+    cm = confusion_matrix(y_test, y_pred, labels=mlp.classes_)
+    print('Matriz de confusão (linhas = real, colunas = previsto):')
+    print(pd.DataFrame(cm, index=mlp.classes_,
+                       columns=[c[:4] for c in mlp.classes_]).to_string())
+
+    fig, ax = plt.subplots(figsize=(8, 8))
+    ConfusionMatrixDisplay(cm, display_labels=mlp.classes_).plot(
+        ax=ax, xticks_rotation=90, colorbar=False)
+    ax.set_title(f'Rodada {n:02d}: {camadas} | {ativacao} | {solver} | '
+                 f'{learning_rate}\nacurácia teste = {acc_teste:.4f}', fontsize=10)
     fig.tight_layout()
-    if GRAFICO_AO_VIVO:
-        plt.pause(0.01)
+    fig.savefig(os.path.join(PASTA_SAIDA, f'cm_rodada_{n:02d}.png'), dpi=100)
+    if EM_NOTEBOOK:
+        plt.show()
+    else:
+        plt.close(fig)
+
+    resultados.append({
+        'rodada': n, 'item': item, 'camadas': str(camadas), 'ativacao': ativacao,
+        'solver': solver, 'learning_rate': learning_rate,
+        'learning_rate_init': learning_rate_init, 'max_iter': max_iter,
+        'epocas': mlp.n_iter_, 'atingiu_max_iter': atingiu_max,
+        'acc_treino': round(acc_treino, 4), 'acc_teste': round(acc_teste, 4),
+    })
+    return mlp
 
 
-for ep in range(N_EPOCAS):
-    mlp.partial_fit(X_train_s, y_train, classes=classes)   # 1 época
+#%% a) ARQUITETURA + b) FUNÇÃO DE ATIVAÇÃO (solver adam)
+# a1) uma camada oculta: 10, 20, 50, 100, 200 neurônios
+# a2) duas camadas ocultas: 10+10, 20+20, 50+50 neurônios
+# b) cada arquitetura com 'relu' e 'logistic' (sigmoid)
+# c) o número de épocas até parar por falta de melhoria sai em cada rodada
 
-    hist['perda'].append(mlp.loss_)
-    hist['treino'].append(accuracy_score(y_train, mlp.predict(X_train_s)))
-    hist['validacao'].append(accuracy_score(y_val, mlp.predict(X_val_s)))
-    hist['teste'].append(accuracy_score(y_test, mlp.predict(X_test_s)))
-
-    # guarda o melhor modelo segundo a VALIDAÇÃO
-    if hist['validacao'][-1] > melhor_val:
-        melhor_val, melhor_ep = hist['validacao'][-1], ep
-        melhor_modelo = copy.deepcopy(mlp)
-
-    if ep % 10 == 0:
-        print(f'Época {ep:4d} | perda {mlp.loss_:.4f} | '
-              f'treino {hist["treino"][-1]:.3f} | '
-              f'val {hist["validacao"][-1]:.3f} | '
-              f'teste {hist["teste"][-1]:.3f}')
-
-    if GRAFICO_AO_VIVO and ep % ATUALIZA_A_CADA == 0:
-        desenhar()
-
-    if ep - melhor_ep >= PACIENCIA:
-        print(f'\nParada antecipada na época {ep} (sem melhora há {PACIENCIA} épocas).')
-        break
-
-desenhar()
-if GRAFICO_AO_VIVO:
-    plt.ioff()
-plt.show(block=False)
-
-print(f'\nMelhor época: {melhor_ep} (validação = {melhor_val:.3f})')
-mlp = melhor_modelo   # usa o modelo da melhor época daqui para frente
+for camadas in ARQUITETURAS:
+    for ativacao in ATIVACOES:
+        rodar('a/b', camadas, ativacao)
 
 
-#%% DESEMPENHO SOBRE O CONJUNTO DE TESTE
+#%% c) NÚMERO DE ÉPOCAS (max_iter)
+# Na melhor configuração de a/b, varia max_iter: com poucas épocas o treino é
+# interrompido antes de convergir (ConvergenceWarning); a partir de certo ponto
+# ele termina sozinho "por falta de melhoria" e aumentar max_iter não muda nada.
 
-y_pred = mlp.predict(X_test_s)
-print('Acurácia treino:', accuracy_score(y_train, mlp.predict(X_train_s)))
-print('Acurácia teste: ', accuracy_score(y_test, y_pred))
-print('\nRelatório por classe:')
-print(classification_report(y_test, y_pred, zero_division=0))
+ab = pd.DataFrame(resultados)
+melhor_ab = ab.loc[ab['acc_teste'].idxmax()]
+camadas_c = tuple(int(n) for n in melhor_ab['camadas'].strip('()').split(',') if n.strip())
+print(f"\nMelhor configuração de a/b: {camadas_c} | {melhor_ab['ativacao']} "
+      f"(acurácia {melhor_ab['acc_teste']:.4f})")
+
+for max_iter in [50, 100, 200, 500, 1000, 2000]:
+    rodar('c', camadas_c, melhor_ab['ativacao'], max_iter=max_iter)
 
 
-#%% MATRIZ DE CONFUSÃO
+#%% d) TAXA DE APRENDIZADO 'adaptive' (solver sgd)
+# learning_rate só tem efeito com solver='sgd' (no 'adam' é ignorado).
+# 'constant': taxa fixa; para após N_ITER_NO_CHANGE épocas sem melhoria.
+# 'adaptive': quando a perda para de cair, divide a taxa por 5 e continua;
+#             só para quando a taxa fica menor que 1e-6.
+# Compara os dois em todas as arquiteturas, com a melhor ativação de b.
 
-cm = confusion_matrix(y_test, y_pred, labels=mlp.classes_)
-fig2, ax = plt.subplots(figsize=(10, 10))
-ConfusionMatrixDisplay(cm, display_labels=mlp.classes_).plot(
-    ax=ax, xticks_rotation=90, colorbar=False)
-ax.set_title(f'Matriz de confusão (época {melhor_ep})')
-plt.tight_layout()
-plt.show()
+for camadas in ARQUITETURAS:
+    for learning_rate in ['constant', 'adaptive']:
+        rodar('d', camadas, melhor_ab['ativacao'], solver='sgd',
+              learning_rate=learning_rate, learning_rate_init=LR_INIT_SGD)
+
+
+#%% CONCLUSÃO: TABELAS DE ACURÁCIA E ÉPOCAS
+
+res = pd.DataFrame(resultados)
+res.to_csv(os.path.join(PASTA_SAIDA, 'resultados.csv'), index=False)
+ordem = [str(c) for c in ARQUITETURAS]
+
+print('\n\n##### a/b) Acurácia no teste: arquitetura x ativação (solver adam) #####')
+tab_ab = res[res['item'] == 'a/b'].pivot(index='camadas', columns='ativacao', values='acc_teste')
+print(tab_ab.reindex(ordem).to_string(float_format='%.4f'))
+media = tab_ab.mean()
+print(f"\nMédia por ativação: relu = {media['relu']:.4f} | logistic (sigmoid) = {media['logistic']:.4f}")
+
+print('\n##### c) Épocas até parar (a/b, max_iter=%d) #####' % MAX_ITER)
+print(res[res['item'] == 'a/b'].pivot(index='camadas', columns='ativacao', values='epocas')
+      .reindex(ordem).to_string())
+
+print('\n##### c) Variação de max_iter na melhor configuração #####')
+print(res[res['item'] == 'c'][['max_iter', 'epocas', 'atingiu_max_iter', 'acc_teste']]
+      .to_string(index=False, float_format='%.4f'))
+
+print('\n##### d) Acurácia no teste: arquitetura x learning_rate (solver sgd) #####')
+tab_d = res[res['item'] == 'd'].pivot(index='camadas', columns='learning_rate', values='acc_teste')
+print(tab_d.reindex(ordem).to_string(float_format='%.4f'))
+print('\nÉpocas até parar (solver sgd):')
+print(res[res['item'] == 'd'].pivot(index='camadas', columns='learning_rate', values='epocas')
+      .reindex(ordem).to_string())
+
+melhor = res.loc[res['acc_teste'].idxmax()]
+print('\n##### MELHOR RODADA #####')
+print(f"Rodada {melhor['rodada']:02d}: camadas={melhor['camadas']} | ativação={melhor['ativacao']} | "
+      f"solver={melhor['solver']} | learning_rate={melhor['learning_rate']} | "
+      f"épocas={melhor['epocas']} | acurácia teste={melhor['acc_teste']:.4f}")
+print(f"Matriz de confusão: {PASTA_SAIDA}/cm_rodada_{melhor['rodada']:02d}.png")
