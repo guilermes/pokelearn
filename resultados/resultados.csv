@@ -24,7 +24,7 @@ rodada,item,camadas,ativacao,solver,learning_rate,learning_rate_init,max_iter,ep
 23,d,"(10,)",logistic,sgd,constant,0.1,2000,1137,False,0.9969,0.7081
 24,d,"(10,)",logistic,sgd,adaptive,0.1,2000,1233,False,0.9969,0.7081
 25,d,"(20,)",logistic,sgd,constant,0.1,2000,760,False,1.0,0.6832
-26,d,"(20,)",logistic,sgd,adaptive,0.1,2000,848,False,1.0,0.6832
+26,d,"(20,)",logistic,sgd,adaptive,0.1,2000,848,False,1.0,0.6832  
 27,d,"(50,)",logistic,sgd,constant,0.1,2000,629,False,1.0,0.6646
 28,d,"(50,)",logistic,sgd,adaptive,0.1,2000,718,False,1.0,0.6646
 29,d,"(100,)",logistic,sgd,constant,0.1,2000,590,False,1.0,0.6832
